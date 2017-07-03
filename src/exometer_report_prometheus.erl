@@ -98,13 +98,6 @@ fetch_metrics([{Name, {Type, Help, LabelMetricEntries}} | Entries], Acc) ->
 
 fetch_label_metrics(_Type, [], Acc) ->
     Acc;
-fetch_label_metrics(Type, [{Labels,Metric} | LabelEntries], Acc) ->
-    case exometer:get_value(Metric) of
-        {ok, DataPointValues} ->
-            fetch_label_metrics(Type, LabelEntries, [{Labels, DataPointValues} | Acc]);
-        _Error ->
-            fetch_label_metrics(duration, LabelEntries, Acc)
-    end;
 fetch_label_metrics(counter, [{Labels,Metric} | LabelEntries], Acc) ->
     case exometer:get_value(Metric,[value]) of
         {ok, DataPointValues} ->
@@ -118,6 +111,13 @@ fetch_label_metrics(gauge, [{Labels,Metric} | LabelEntries], Acc) ->
             fetch_label_metrics(gauge, LabelEntries, [{Labels, DataPointValues} | Acc]);
         _Error ->
             fetch_label_metrics(gauge, LabelEntries, Acc)
+    end;
+fetch_label_metrics(Type, [{Labels,Metric} | LabelEntries], Acc) ->
+    case exometer:get_value(Metric) of
+        {ok, DataPointValues} ->
+            fetch_label_metrics(Type, LabelEntries, [{Labels, DataPointValues} | Acc]);
+        _Error ->
+            fetch_label_metrics(duration, LabelEntries, Acc)
     end.
 
 format_metrics(Metrics) ->
