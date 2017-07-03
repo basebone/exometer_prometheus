@@ -71,9 +71,26 @@ exometer_call({request, fetch}, _From, State = #state{entries = Entries}) ->
 exometer_call(_Req, _From, State) ->
     {ok, State}.
 
-exometer_newentry(_Entry, State) -> 
-    io:format("NEW ENTRY --> ~p",[_Entry]),
-    {ok, State}.
+exometer_newentry(Entry, State) -> 
+    S = {exometer_entry,
+                  [riak,riak_core,vnodeq,gate_queue_vnode,
+                   274031556999544297163190906134303066185487351808],
+                  function,undefined,exometer_function,1,0,undefined,
+                  undefined,
+                  [{arg,
+                       {erlang,process_info,
+                           ["<0.4597.0>",message_queue_len],
+                           match,
+                           {'_',value}}}],
+                  undefined},
+    case element(2,Entry) of
+        [riak,riak_core,vnodeq,_,_] = Metric ->
+            exometer_subscribe(Metric, [value], 0, [{help, <<"Vnode queue">>},{fieldmap,[ignore,name,name,vnode_type,partition]}],State);
+        [riak,riak_core,dropped_vnode_requests] = Metric ->
+            exometer_subscribe(Metric, [value], 0, [{help, <<"Dropped vnode requests">>},{fieldmap,[ignore,name,name]}],State);
+        _ ->
+            {ok, State}
+    end.
 exometer_report(_Metric, _DataPoint, _Extra, _Value, State) -> 
     io:format("REPORT --> ~p, ~p, ~p, ~p",[_Metric, _DataPoint, _Extra, _Value]),
     {ok, State}.
@@ -224,6 +241,7 @@ ioize_val(Number) when is_integer(Number) ->
     integer_to_binary(Number).
 
 map_type(counter)       -> <<"counter">>;
+map_type(function)       -> <<"counter">>;
 map_type(gauge)         -> <<"gauge">>;
 map_type(histogram)     -> <<"summary">>;
 map_type(duration)     -> <<"summary">>.
