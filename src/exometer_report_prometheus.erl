@@ -14,11 +14,13 @@
     exometer_unsubscribe/4,
     exometer_newentry/2,
     exometer_setopts/4,
-    exometer_terminate/2
+    exometer_terminate/2,
+    make_metric_name/2,
+    fetch_and_format_metrics/1
 ]).
 
 
--record(state, {entries = [] :: list()}).
+-record(state, {entries = #{} :: list()}).
 
 %% -------------------------------------------------------
 %% Public API
@@ -39,21 +41,33 @@ exometer_init(Opts) ->
     end,
     {ok, #state{}}.
 
-exometer_subscribe(Metric, DataPoints, _Interval, Opts, State = #state{entries=Entries}) ->
-    Name = make_metric_name(Metric),
-    Help = proplists:get_value(help, Opts, <<"undefined">>),
-    Type = case proplists:get_value(type, Opts, undefined) of
-               undefined -> map_type(exometer:info(Metric, type));
-               SomeType  -> ioize(SomeType)
-           end,
-    Entry = {Metric, DataPoints, Name, Type, Help},
-    {ok, State#state{entries = Entries ++ [Entry]}}.
+exometer_subscribe(Metric, _DataPoints, _Interval, Opts, State = #state{entries=Entries}) ->
 
-exometer_unsubscribe(Metric, _DataPoints, _Extra, State = #state{entries=Entries}) ->
+    FieldMap = proplists:get_value(fieldmap, Opts, node),
+    {Name, Labels} = make_metric_name(Metric, FieldMap),
+    Type = map_type(exometer:info(Metric, type)),
+    Help = proplists:get_value(help, Opts, <<"undefined">>),
+    case maps:get(Name,Entries,new) of
+        new ->
+            LabelMap = #{Labels => Metric},
+            {ok, State#state{entries = Entries#{Name => {Type, Help, LabelMap}}}};
+        {CurrentName, CurrentType, CurrentHelp, LabelMap} = Entries ->
+            case Type of
+                CurrentType ->
+                    % Entry = {Metric},
+                    #{Name := {CurrentHelp, CurrentType, LabelMap}} = Entries,
+                    NewLabelMap = LabelMap#{Labels => Metric},
+                    {ok, State#state{entries = Entries#{CurrentName => {CurrentType, CurrentHelp, NewLabelMap}}}};
+            _ ->
+                {error, "Invalid type"}
+        end
+    end.
+
+exometer_unsubscribe(Metric, _DataPoints, _Extra, State = #state{entries = Entries}) ->
     {ok, State#state{entries = proplists:delete(Metric, Entries)}}.
 
 exometer_call({request, fetch}, _From, State = #state{entries = Entries}) ->
-    {reply, fetch_and_format_metrics(Entries), State};
+    {reply, fetch_and_format_metrics(maps:to_list(Entries)), State};
 exometer_call(_Req, _From, State) ->
     {ok, State}.
 
@@ -70,20 +84,40 @@ exometer_terminate(_Reason, _) -> ignore.
 %% -------------------------------------------------------
 
 fetch_and_format_metrics(Entries) ->
-    Metrics = fetch_metrics(Entries),
+    Metrics = fetch_metrics(Entries,[]),
     format_metrics(Metrics).
 
-fetch_metrics(Entries) ->
-    fetch_metrics(Entries, []).
+% fetch_metrics(Entries) ->
+%     fetch_metrics(Entries, []).
 
 fetch_metrics([], Akk) ->
     Akk;
-fetch_metrics([{Metric, DataPoints, Name, Type, Help} | Entries], Akk) ->
-    case exometer:get_value(Metric, DataPoints) of
+fetch_metrics([{Name, {Type, Help, LabelMetricEntries}} | Entries], Acc) ->
+    LabelMetricValues = fetch_label_metrics(Type, maps:to_list(LabelMetricEntries),[]),
+    fetch_metrics(Entries, [{Name, Type, Help, LabelMetricValues} | Acc]).
+
+fetch_label_metrics(_Type, [], Acc) ->
+    Acc;
+fetch_label_metrics(Type, [{Labels,Metric} | LabelEntries], Acc) ->
+    case exometer:get_value(Metric) of
         {ok, DataPointValues} ->
-            fetch_metrics(Entries, [{Metric, DataPointValues, Name, Type, Help} | Akk]);
+            fetch_label_metrics(Type, LabelEntries, [{Labels, DataPointValues} | Acc]);
         _Error ->
-            fetch_metrics(Entries, Akk)
+            fetch_label_metrics(duration, LabelEntries, Acc)
+    end;
+fetch_label_metrics(counter, [{Labels,Metric} | LabelEntries], Acc) ->
+    case exometer:get_value(Metric,[value]) of
+        {ok, DataPointValues} ->
+            fetch_label_metrics(counter, LabelEntries, [{Labels, DataPointValues} | Acc]);
+        _Error ->
+            fetch_label_metrics(counter, LabelEntries, Acc)
+    end;
+fetch_label_metrics(gauge, [{Labels,Metric} | LabelEntries], Acc) ->
+    case exometer:get_value(Metric,[value]) of
+        {ok, DataPointValues} ->
+            fetch_label_metrics(gauge, LabelEntries, [{Labels, DataPointValues} | Acc]);
+        _Error ->
+            fetch_label_metrics(gauge, LabelEntries, Acc)
     end.
 
 format_metrics(Metrics) ->
@@ -92,69 +126,143 @@ format_metrics(Metrics) ->
 
 format_metrics([], Akk) ->
     Akk;
-format_metrics([{Metric, DataPoints, Name, Type, Help} | Metrics], Akk) ->
+format_metrics([{Name, Type, Help, LabelMetrics}|Rest],Acc) ->
     Payload = [[<<"# HELP ">>, Name, <<" ">>, Help, <<"\n">>,
-                <<"# TYPE ">>, Name, <<" ">>, Type, <<"\n">>] |
-               [[Name, map_datapoint(DPName), <<" ">>, ioize(Value), <<"\n">>]
-               || {DPName, Value} <- DataPoints, is_valid_datapoint(DPName)]],
-    Payload1 = maybe_add_sum(Payload, Name, Metric, Type),
-    format_metrics(Metrics, [Payload1, <<"\n">> | Akk]).
+                <<"# TYPE ">>, Name, <<" ">>, map_type(Type),<<"\n">>]],
+    FormattedLabelMetrics = format_label_metrics(Name, Type, LabelMetrics,[]),
+    format_metrics(Rest, [Payload,FormattedLabelMetrics|Acc]).
 
-make_metric_name(Metric) ->
+format_label_metrics(_, _, [], Acc) ->
+    Acc;
+format_label_metrics(Name, duration, [{Label, [{count,_},{last,_},{n,N},{mean,Mean},{min,_},{max,_},{median,_}|Rest]} | Metrics], Acc) ->
+    Buckets = format_duration_bukcets(Name, Label, Rest,[]),
+    Payload = [
+        Name,<<"_count">>,format_labels(Label,[]),<<" ">>,ioize(N),<<"\n">>,
+        Name,<<"_sum">>,format_labels(Label,[]),<<" ">>,ioize(N*Mean),<<"\n">>
+    ],
+    format_label_metrics(Name, duration, Metrics, [Buckets,Payload|Acc]);
+format_label_metrics(Name, histogram, [{Label, [{n,N},{mean,Mean},{min,0},{max,0},{median,0}|Rest]} | Metrics], Acc) ->
+    Buckets = format_histogram_bukcets(Name, Label, Rest,[]),
+    Payload = [
+        Name,<<"_count">>,format_labels(Label,[]),<<" ">>,ioize(N),<<"\n">>,
+        Name,<<"_sum">>,format_labels(Label,[]),<<" ">>,ioize(N*Mean),<<"\n">>
+    ],
+    format_label_metrics(Name, histogram, Metrics, [Buckets,Payload|Acc]);
+format_label_metrics(Name, counter, [{Label, [{value, Value}]} | Metrics], Acc) ->
+    Payload = [
+        Name,format_labels(Label,[]),<<" ">>,ioize(Value),<<"\n">>
+    ],
+    format_label_metrics(Name, counter, Metrics, [Payload|Acc]);
+format_label_metrics(Name, gauge, [{Label, [{value, Value}]} | Metrics], Acc) ->
+    Payload = [
+        Name,format_labels(Label,[]),<<" ">>,ioize(Value),<<"\n">>
+    ],
+    format_label_metrics(Name, gauge, Metrics, [Payload|Acc]).
+
+format_duration_bukcets(_Name,_Label,[],Acc) ->
+    Acc;
+format_duration_bukcets(Name,Label,[{Bucket, Value}|Rest],Acc) ->
+    Payload = [Name, <<"_bucket">>, format_labels([{<<"le">>,ioize_val(Bucket)}|Label],[]), <<" ">>, ioize(Value)],
+    format_duration_bukcets(Name, Label, Rest, Acc++Payload).
+
+format_histogram_bukcets(_Name,_Label,[],Acc) ->
+    Acc;
+format_histogram_bukcets(Name,Label,[{Bucket, Value}|Rest],Acc) ->
+    Payload = [Name, <<"_bucket">>, format_labels([{<<"le">>,ioize_val(Bucket)}|Label],[]), <<" ">>, ioize(Value)],
+    format_histogram_bukcets(Name, Label, Rest, Acc++Payload).
+
+format_labels([],[]) ->
+    [];
+format_labels([],Acc) ->
+    [<<"{">>, Acc, <<"}">>];
+format_labels([{Label,Value}|Rest],[]) ->
+    format_labels(Rest,[Label,<<"=">>,Value]);
+format_labels([{Label,Value}|Rest],Acc) ->
+    format_labels(Rest,Acc++[<<",">>,Label,<<"=">>,Value]).
+
+% format_metrics([{Metric, DataPoints, Name, Type, Help} | Metrics], Akk) ->
+%     Payload = [[<<"# HELP ">>, Name, <<" ">>, Help, <<"\n">>,
+%                 <<"# TYPE ">>, Name, <<" ">>, Type, <<"\n">>] |
+%                [[Name, map_datapoint(DPName), <<" ">>, ioize(Value), <<"\n">>]
+%                || {DPName, Value} <- DataPoints, is_valid_datapoint(DPName)]],
+%     Payload1 = maybe_add_sum(Payload, Name, Metric, Type),
+%     format_metrics(Metrics, [Payload1, <<"\n">> | Akk]).
+
+% format_duration(Name, DataPoints) ->
+%     format_duration(Name, DataPoints, {[],[],[]}).
+% format_duration(Name, [], {_Count, Mean, Bucket}) ->
+    
+% format_duration(Name, [{count,Val}|DataPoints], {_Count, Mean, Bucket}) ->
+%     format_duration(Name, DataPoints, {Val, Mean, Bucket});
+% format_duration(Name, [{mean,Val}|DataPoints], {Count, _Mean, Bucket}) ->
+%     format_duration(Name, DataPoints, {Count, Val, Bucket});
+% format_duration(Name, [{Bucket,Val}|DataPoints], {Count, Mean, Bucket}) when is_number(Bucket)->
+%     format_duration(Name, DataPoints, {Count, Mean, Bucket++[{Bucket,Val}]});
+% format_duration(Name, [_Ignore|DataPoints], {_Count, _Mean, _Bucket}= List)->
+%     format_duration(Name, DataPoints, List).
+    
+    %  ->
+% [{count,0},
+%      {last,0},
+%      {n,0},
+%      {mean,0},
+%      {min,0},
+%      {max,0},
+%      {median,0},
+%      {50,0},
+%      {75,0},
+%      {90,0},
+%      {95,0},
+%      {99,0},
+%      {999,0}].
+% http_request_duration_seconds_bucket{le="0.05"} 24054
+% http_request_duration_seconds_bucket{le="0.1"} 33444
+% http_request_duration_seconds_bucket{le="0.2"} 100392
+% http_request_duration_seconds_bucket{le="0.5"} 129389
+% http_request_duration_seconds_bucket{le="1"} 133988
+% http_request_duration_seconds_bucket{le="+Inf"} 144320
+% http_request_duration_seconds_sum 53423
+% http_request_duration_seconds_count 144320
+make_metric_name(Metric, []) ->
     NameList = lists:join($_, lists:map(fun ioize/1, Metric)),
-    NameBin = iolist_to_binary(NameList),
-    re:replace(NameBin, "-|\\.", "_", [global, {return,binary}]).
+    iolist_to_binary(NameList);
 
+make_metric_name(Metric, FieldMap) ->
+    make_metric_name(Metric, FieldMap,{<<>>,[]}).
+make_metric_name([], [], Name) ->
+    Name;
+make_metric_name([_MetricH|MetricR], [ignore|FieldR], Name) ->
+    make_metric_name(MetricR,FieldR, Name);
+make_metric_name([MetricH|MetricR],[name|FieldR], {<<>>, []}) ->
+    make_metric_name(MetricR,FieldR, {ioize(MetricH),[]});
+make_metric_name([MetricH|MetricR],[name|FieldR],{AccName, Labels}) ->
+    Name = ioize(MetricH),
+    make_metric_name(MetricR,FieldR, {<<AccName/binary, <<"_">>/binary, Name/binary>>,Labels});
+make_metric_name([MetricH|MetricR],[Field|FieldR],{AccName,Labels}) ->
+    LabelName = ioize(Field),
+    LabelVal = ioize_val(MetricH),
+    make_metric_name(MetricR,FieldR,{AccName, Labels++[{LabelName,LabelVal}]}).
+
+ioize(Bin) when is_binary(Bin) ->
+    Bin;
 ioize(Atom) when is_atom(Atom) ->
-    atom_to_binary(Atom, utf8);
+    re:replace(atom_to_binary(Atom, utf8), "-|\\.", "_", [global, {return,binary}]);
 ioize(Number) when is_float(Number) ->
     float_to_binary(Number, [{decimals, 4}]);
 ioize(Number) when is_integer(Number) ->
-    integer_to_binary(Number);
-ioize(Something) ->
-    Something.
+    integer_to_binary(Number).
+    
+ioize_val(Bin) when is_binary(Bin) ->
+    [<<"\"">>,Bin,<<"\"">>];
+ioize_val(Atom) when is_atom(Atom) ->
+    Val = re:replace(atom_to_binary(Atom, utf8), "-|\\.", "_", [global, {return,binary}]),
+    <<<<"\"">>/binary,Val/binary,<<"\"">>/binary>>;
+ioize_val(Number) when is_float(Number) ->
+    float_to_binary(Number, [{decimals, 4}]);
+ioize_val(Number) when is_integer(Number) ->
+    integer_to_binary(Number).
 
-maybe_add_sum(Payload, MetricName, Metric, <<"summary">>) ->
-    {ok, [{mean, Mean}, {n, N}]} = exometer:get_value(Metric, [mean, n]),
-    [Payload | [MetricName, <<"_sum ">>, ioize(Mean * N), <<"\n">>]];
-maybe_add_sum(Payload, _MetricName, _Metric, _Else) ->
-    Payload.
-
-map_type(undefined)     -> <<"untyped">>;
-map_type(counter)       -> <<"gauge">>;
+map_type(counter)       -> <<"counter">>;
 map_type(gauge)         -> <<"gauge">>;
-map_type(spiral)        -> <<"gauge">>;
-map_type(histogram)     -> <<"summary">>;
-map_type(function)      -> <<"gauge">>;
-map_type(Tuple) when is_tuple(Tuple) ->
-    case element(1, Tuple) of
-        function -> <<"gauge">>;
-        _Else    -> <<"untyped">>
-    end.
-
-map_datapoint(value)    -> <<"">>;
-map_datapoint(one)      -> <<"">>;
-map_datapoint(n)        -> <<"_count">>;
-map_datapoint(50)       -> <<"{quantile=\"0.5\"}">>;
-map_datapoint(90)       -> <<"{quantile=\"0.9\"}">>;
-map_datapoint(Integer) when is_integer(Integer)  ->
-    Bin = ioize(Integer),
-    <<"{quantile=\"0.", Bin/binary, "\"}">>;
-map_datapoint(Something)  ->
-    %% this is for functions with alternative datapoints
-    Bin = ioize(Something),
-    <<"{datapoint=\"", Bin/binary, "\"}">>.
-
-is_valid_datapoint(value) -> true;
-is_valid_datapoint(one) -> true;
-is_valid_datapoint(n) -> true;
-is_valid_datapoint(Number) when is_number(Number) -> true;
-is_valid_datapoint(count) -> false;
-is_valid_datapoint(mean) -> false;
-is_valid_datapoint(min) -> false;
-is_valid_datapoint(max) -> false;
-is_valid_datapoint(median) -> false;
-is_valid_datapoint(ms_since_reset) -> false;
-%% this is for functions with alternative datapoints
-is_valid_datapoint(_Else) -> true.
-
+map_type(histogram)     -> <<"histogram">>;
+map_type(duration)     -> <<"summary">>.
