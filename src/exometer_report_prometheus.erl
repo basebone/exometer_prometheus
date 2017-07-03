@@ -176,53 +176,10 @@ format_labels([],[]) ->
 format_labels([],Acc) ->
     [<<"{">>, Acc, <<"}">>];
 format_labels([{Label,Value}|Rest],[]) ->
-    format_labels(Rest,[Label,<<"=">>,Value]);
+    format_labels(Rest,[Label,<<"=\"">>,Value,<<"\"">>]);
 format_labels([{Label,Value}|Rest],Acc) ->
-    format_labels(Rest,Acc++[<<",">>,Label,<<"=">>,Value]).
+    format_labels(Rest,Acc++[<<",">>,Label,<<"=\"">>,Value,<<"\"">>]).
 
-% format_metrics([{Metric, DataPoints, Name, Type, Help} | Metrics], Akk) ->
-%     Payload = [[<<"# HELP ">>, Name, <<" ">>, Help, <<"\n">>,
-%                 <<"# TYPE ">>, Name, <<" ">>, Type, <<"\n">>] |
-%                [[Name, map_datapoint(DPName), <<" ">>, ioize(Value), <<"\n">>]
-%                || {DPName, Value} <- DataPoints, is_valid_datapoint(DPName)]],
-%     Payload1 = maybe_add_sum(Payload, Name, Metric, Type),
-%     format_metrics(Metrics, [Payload1, <<"\n">> | Akk]).
-
-% format_duration(Name, DataPoints) ->
-%     format_duration(Name, DataPoints, {[],[],[]}).
-% format_duration(Name, [], {_Count, Mean, Bucket}) ->
-    
-% format_duration(Name, [{count,Val}|DataPoints], {_Count, Mean, Bucket}) ->
-%     format_duration(Name, DataPoints, {Val, Mean, Bucket});
-% format_duration(Name, [{mean,Val}|DataPoints], {Count, _Mean, Bucket}) ->
-%     format_duration(Name, DataPoints, {Count, Val, Bucket});
-% format_duration(Name, [{Bucket,Val}|DataPoints], {Count, Mean, Bucket}) when is_number(Bucket)->
-%     format_duration(Name, DataPoints, {Count, Mean, Bucket++[{Bucket,Val}]});
-% format_duration(Name, [_Ignore|DataPoints], {_Count, _Mean, _Bucket}= List)->
-%     format_duration(Name, DataPoints, List).
-    
-    %  ->
-% [{count,0},
-%      {last,0},
-%      {n,0},
-%      {mean,0},
-%      {min,0},
-%      {max,0},
-%      {median,0},
-%      {50,0},
-%      {75,0},
-%      {90,0},
-%      {95,0},
-%      {99,0},
-%      {999,0}].
-% http_request_duration_seconds_bucket{le="0.05"} 24054
-% http_request_duration_seconds_bucket{le="0.1"} 33444
-% http_request_duration_seconds_bucket{le="0.2"} 100392
-% http_request_duration_seconds_bucket{le="0.5"} 129389
-% http_request_duration_seconds_bucket{le="1"} 133988
-% http_request_duration_seconds_bucket{le="+Inf"} 144320
-% http_request_duration_seconds_sum 53423
-% http_request_duration_seconds_count 144320
 make_metric_name(Metric, []) ->
     NameList = lists:join($_, lists:map(fun ioize/1, Metric)),
     iolist_to_binary(NameList);
@@ -253,10 +210,9 @@ ioize(Number) when is_integer(Number) ->
     integer_to_binary(Number).
     
 ioize_val(Bin) when is_binary(Bin) ->
-    [<<"\"">>,Bin,<<"\"">>];
+    Bin;
 ioize_val(Atom) when is_atom(Atom) ->
-    Val = re:replace(atom_to_binary(Atom, utf8), "-|\\.", "_", [global, {return,binary}]),
-    <<<<"\"">>/binary,Val/binary,<<"\"">>/binary>>;
+    re:replace(atom_to_binary(Atom, utf8), "-|\\.", "_", [global, {return,binary}]);
 ioize_val(Number) when is_float(Number) ->
     float_to_binary(Number, [{decimals, 4}]);
 ioize_val(Number) when is_integer(Number) ->
