@@ -141,7 +141,7 @@ format_label_metrics(Name, duration, [{Label, [{count,_},{last,_},{n,N},{mean,Me
         Name,<<"_sum">>,format_labels(Label,[]),<<" ">>,ioize(N*Mean),<<"\n">>
     ],
     format_label_metrics(Name, duration, Metrics, [Buckets,Payload|Acc]);
-format_label_metrics(Name, histogram, [{Label, [{n,N},{mean,Mean},{min,0},{max,0},{median,0}|Rest]} | Metrics], Acc) ->
+format_label_metrics(Name, histogram, [{Label, [{n,N},{mean,Mean},{min,_},{max,_},{median,_}|Rest]} | Metrics], Acc) ->
     Buckets = format_histogram_bukcets(Name, Label, Rest,[]),
     Payload = [
         Name,<<"_count">>,format_labels(Label,[]),<<" ">>,ioize(N),<<"\n">>,
