@@ -83,6 +83,10 @@ exometer_newentry(Entry, State) ->
             exometer_subscribe(Metric, [value], 0, [{help, <<"DB query cache hits">>},{fieldmap,[name,name]}],State);
         [kraken,db_query_cache_miss] = Metric ->
             exometer_subscribe(Metric, [value], 0, [{help, <<"DB query cache misses">>},{fieldmap,[name,name]}],State);
+        [kraken,client,submit,_,_,_] = Metric ->
+            exometer_subscribe(Metric, [value], 0, [{help, <<"Client submit counter">>},{fieldmap,[name,name,name,clientid,serviceid,toc]}],State);
+        [kraken,gate,submit,_,_] = Metric ->
+            exometer_subscribe(Metric, [value], 0, [{help, <<"Gate submit counter">>},{fieldmap,[name,name,name,gateid,toc]}],State);
         % [kraken,]
         _ ->
             {ok, State}
