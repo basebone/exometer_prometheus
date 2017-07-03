@@ -45,7 +45,7 @@ exometer_subscribe(Metric, _DataPoints, _Interval, Opts, State = #state{entries=
 
     FieldMap = proplists:get_value(fieldmap, Opts, node),
     {Name, Labels} = make_metric_name(Metric, FieldMap),
-    Type = map_type(exometer:info(Metric, type)),
+    Type = exometer:info(Metric, type),
     Help = proplists:get_value(help, Opts, <<"undefined">>),
     case maps:get(Name,Entries,new) of
         new ->
@@ -128,36 +128,36 @@ format_metrics([], Akk) ->
     Akk;
 format_metrics([{Name, Type, Help, LabelMetrics}|Rest],Acc) ->
     Payload = [[<<"# HELP ">>, Name, <<" ">>, Help, <<"\n">>,
-                <<"# TYPE ">>, Name, <<" ">>, Type,<<"\n">>]],
+                <<"# TYPE ">>, Name, <<" ">>, map_type(Type),<<"\n">>]],
     FormattedLabelMetrics = format_label_metrics(Name, Type, LabelMetrics,[]),
     format_metrics(Rest, [Payload,FormattedLabelMetrics|Acc]).
 
 format_label_metrics(_, _, [], Acc) ->
     Acc;
-format_label_metrics(Name, <<"duration">>, [{Label, [{count,_},{last,_},{n,N},{mean,Mean},{min,_},{max,_},{median,_}|Rest]} | Metrics], Acc) ->
+format_label_metrics(Name, duration, [{Label, [{count,_},{last,_},{n,N},{mean,Mean},{min,_},{max,_},{median,_}|Rest]} | Metrics], Acc) ->
     Buckets = format_duration_bukcets(Name, Label, Rest,[]),
     Payload = [
         Name,<<"_count">>,format_labels(Label,[]),<<" ">>,ioize(N),<<"\n">>,
         Name,<<"_sum">>,format_labels(Label,[]),<<" ">>,ioize(N*Mean),<<"\n">>
     ],
-    format_label_metrics(Name, <<"duration">>, Metrics, [Buckets,Payload|Acc]);
-format_label_metrics(Name, <<"histogram">>, [{Label, [{n,N},{mean,Mean},{min,0},{max,0},{median,0}|Rest]} | Metrics], Acc) ->
+    format_label_metrics(Name, duration, Metrics, [Buckets,Payload|Acc]);
+format_label_metrics(Name, histogram, [{Label, [{n,N},{mean,Mean},{min,0},{max,0},{median,0}|Rest]} | Metrics], Acc) ->
     Buckets = format_histogram_bukcets(Name, Label, Rest,[]),
     Payload = [
         Name,<<"_count">>,format_labels(Label,[]),<<" ">>,ioize(N),<<"\n">>,
         Name,<<"_sum">>,format_labels(Label,[]),<<" ">>,ioize(N*Mean),<<"\n">>
     ],
-    format_label_metrics(Name, <<"histogram">>, Metrics, [Buckets,Payload|Acc]);
-format_label_metrics(Name, <<"counter">>, [{Label, [{value, Value}]} | Metrics], Acc) ->
+    format_label_metrics(Name, histogram, Metrics, [Buckets,Payload|Acc]);
+format_label_metrics(Name, counter, [{Label, [{value, Value}]} | Metrics], Acc) ->
     Payload = [
         Name,format_labels(Label,[]),<<" ">>,ioize(Value),<<"\n">>
     ],
-    format_label_metrics(Name, <<"counter">>, Metrics, [Payload|Acc]);
-format_label_metrics(Name, <<"gauge">>, [{Label, [{value, Value}]} | Metrics], Acc) ->
+    format_label_metrics(Name, counter, Metrics, [Payload|Acc]);
+format_label_metrics(Name, gauge, [{Label, [{value, Value}]} | Metrics], Acc) ->
     Payload = [
         Name,format_labels(Label,[]),<<" ">>,ioize(Value),<<"\n">>
     ],
-    format_label_metrics(Name, <<"gauge">>, Metrics, [Payload|Acc]).
+    format_label_metrics(Name, gauge, Metrics, [Payload|Acc]).
 
 format_duration_bukcets(_Name,_Label,[],Acc) ->
     Acc;
