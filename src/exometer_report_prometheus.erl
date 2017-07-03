@@ -51,11 +51,11 @@ exometer_subscribe(Metric, _DataPoints, _Interval, Opts, State = #state{entries=
         new ->
             LabelMap = #{Labels => Metric},
             {ok, State#state{entries = Entries#{Name => {Type, Help, LabelMap}}}};
-        {CurrentType, CurrentHelp, LabelMap} = Entries ->
+        {CurrentType, CurrentHelp, LabelMap}->
             case Type of
                 CurrentType ->
                     % Entry = {Metric},
-                    #{Name := {CurrentHelp, CurrentType, LabelMap}} = Entries,
+                    % #{Name := {CurrentHelp, CurrentType, LabelMap}} = Entries,
                     NewLabelMap = LabelMap#{Labels => Metric},
                     {ok, State#state{entries = Entries#{Name => {CurrentType, CurrentHelp, NewLabelMap}}}};
             _ ->
