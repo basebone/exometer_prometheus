@@ -128,7 +128,7 @@ format_metrics([], Akk) ->
     Akk;
 format_metrics([{Name, Type, Help, LabelMetrics}|Rest],Acc) ->
     Payload = [[<<"# HELP ">>, Name, <<" ">>, Help, <<"\n">>,
-                <<"# TYPE ">>, Name, <<" ">>, map_type(Type),<<"\n">>]],
+                <<"# TYPE ">>, Name, <<" ">>, Type,<<"\n">>]],
     FormattedLabelMetrics = format_label_metrics(Name, Type, LabelMetrics,[]),
     format_metrics(Rest, [Payload,FormattedLabelMetrics|Acc]).
 
