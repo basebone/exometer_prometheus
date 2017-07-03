@@ -71,9 +71,14 @@ exometer_call({request, fetch}, _From, State = #state{entries = Entries}) ->
 exometer_call(_Req, _From, State) ->
     {ok, State}.
 
-exometer_newentry(_Entry, State) -> {ok, State}.
-exometer_report(_Metric, _DataPoint, _Extra, _Value, State) -> {ok, State}.
+exometer_newentry(_Entry, State) -> 
+    io:format("NEW ENTRY --> ~p",[_Entry]),
+    {ok, State}.
+exometer_report(_Metric, _DataPoint, _Extra, _Value, State) -> 
+    io:format("REPORT --> ~p, ~p, ~p, ~p",[_Metric, _DataPoint, _Extra, _Value]),
+    {ok, State}.
 exometer_cast(_Unknown, State) -> {ok, State}.
+
 exometer_info(_Info, State) -> {ok, State}.
 exometer_setopts(_Metric, _Options, _Status, State) -> {ok, State}.
 exometer_terminate(_Reason, _) -> ignore.
