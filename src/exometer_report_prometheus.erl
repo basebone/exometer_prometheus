@@ -162,13 +162,13 @@ format_label_metrics(Name, gauge, [{Label, [{value, Value}]} | Metrics], Acc) ->
 format_duration_bukcets(_Name,_Label,[],Acc) ->
     Acc;
 format_duration_bukcets(Name,Label,[{Bucket, Value}|Rest],Acc) ->
-    Payload = [Name, <<"_bucket">>, format_labels([{<<"quantile">>,[<<"0.">>,ioize_val(Bucket)]}|Label],[]), <<" ">>, ioize(Value),<<"\n">>],
+    Payload = [Name, format_labels([{<<"quantile">>,[<<"0.">>,ioize_val(Bucket)]}|Label],[]), <<" ">>, ioize(Value),<<"\n">>],
     format_duration_bukcets(Name, Label, Rest, Acc++Payload).
 
 format_histogram_bukcets(_Name,_Label,[],Acc) ->
     Acc;
 format_histogram_bukcets(Name,Label,[{Bucket, Value}|Rest],Acc) ->
-    Payload = [Name, <<"_bucket">>, format_labels([{<<"quantile">>,[<<"0.">>,ioize_val(Bucket)]}|Label],[]), <<" ">>, ioize(Value),<<"\n">>],
+    Payload = [Name, format_labels([{<<"quantile">>,[<<"0.">>,ioize_val(Bucket)]}|Label],[]), <<" ">>, ioize(Value),<<"\n">>],
     format_histogram_bukcets(Name, Label, Rest, Acc++Payload).
 
 format_labels([],[]) ->
