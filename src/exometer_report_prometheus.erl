@@ -139,7 +139,7 @@ fetch_label_metrics(Type, [{Labels,Metric} | LabelEntries], Acc) ->
         {ok, DataPointValues} ->
             fetch_label_metrics(Type, LabelEntries, [{Labels, DataPointValues} | Acc]);
         _Error ->
-            fetch_label_metrics(duration, LabelEntries, Acc)
+            fetch_label_metrics(Type, LabelEntries, Acc)
     end.
 
 format_metrics(Metrics) ->
@@ -179,7 +179,12 @@ format_label_metrics(Name, gauge, [{Label, [{value, Value}]} | Metrics], Acc) ->
     Payload = [
         Name,format_labels(Label,[]),<<" ">>,ioize(Value),<<"\n">>
     ],
-    format_label_metrics(Name, gauge, Metrics, [Payload|Acc]).
+    format_label_metrics(Name, gauge, Metrics, [Payload|Acc]);
+format_label_metrics(Name, function, [{Label, [{value, Value}]} | Metrics], Acc) ->
+    Payload = [
+        Name,format_labels(Label,[]),<<" ">>,ioize(Value),<<"\n">>
+    ],
+    format_label_metrics(Name, function, Metrics, [Payload|Acc]).
 
 format_duration_bukcets(_Name,_Label,[],Acc) ->
     Acc;
