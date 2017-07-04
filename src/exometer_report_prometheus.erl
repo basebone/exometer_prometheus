@@ -220,7 +220,6 @@ format_label_metrics(Name, function, [{Label, Values} | Metrics], Acc) ->
     Payload = [
         [Name,format_labels(Label++[{<<"type">>,ioize_val(ValueName)}],[]),<<" ">>,ioize(Value),<<"\n">>]
      || {ValueName,Value} <- Values],
-     io:format("Payload ~p~n",[Payload]),
     format_label_metrics(Name, function, Metrics, [Payload|Acc]).
 
 format_duration_bukcets(_Name,_Label,[],Acc) ->
