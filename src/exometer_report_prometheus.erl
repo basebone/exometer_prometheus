@@ -114,7 +114,7 @@ check_dynamic_match(_Metric, [], _Type, State) ->
 check_dynamic_match(Metric, [{Match, Fieldmap, Help} | Rest], Type, State) ->
     case check_name_match(Metric,Match) of
         ok ->
-            io:format("Subscribing to metric ~p",[Metric]),
+            io:format("Subscribing to metric ~p~n",[Metric]),
             exometer_subscribe(Metric, get_type_datapoint(Metric, Type), 0, [{help, Help},{fieldmap,Fieldmap}],State);
         _ ->
             check_dynamic_match(Metric, Rest, Type, State)
@@ -180,7 +180,7 @@ fetch_label_metrics(Type, [{Labels,Metric} | LabelEntries], Acc) ->
 
 format_metrics(Metrics) ->
     Formatted = format_metrics(Metrics, []),
-    iolist_to_binary(lists:flatten(Formatted)).
+    iolist_to_binary(Formatted).
 
 format_metrics([], Akk) ->
     Akk;
@@ -220,6 +220,7 @@ format_label_metrics(Name, function, [{Label, Values} | Metrics], Acc) ->
     Payload = [
         [Name,format_labels(Label++[{type,ValueName}],[]),<<" ">>,ioize(Value),<<"\n">>]
      || {ValueName,Value} <- Values],
+     io:format("Payload ~p~n",[Payload]),
     format_label_metrics(Name, function, Metrics, [Payload|Acc]).
 
 format_duration_bukcets(_Name,_Label,[],Acc) ->
