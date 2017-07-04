@@ -115,7 +115,7 @@ check_dynamic_match(Metric, [{Match, Fieldmap, Help} | Rest], Type, State) ->
     case check_name_match(Metric,Match) of
         ok ->
             io:format("Subscribing to metric ~p",[Metric]),
-            exometer_subscribe(Metric, get_type_datapoint(Type), 0, [{help, Help},{fieldmap,Fieldmap}],State);
+            exometer_subscribe(Metric, get_type_datapoint(Metric, Type), 0, [{help, Help},{fieldmap,Fieldmap}],State);
         _ ->
             check_dynamic_match(Metric, Rest, Type, State)
     end.
@@ -130,16 +130,16 @@ check_name_match([], []) ->
 check_name_match(_, _) ->
     not_ok.
 
-get_type_datapoint(counter) ->
+get_type_datapoint(_Metric, counter) ->
     [value];
-get_type_datapoint(histogram) ->
+get_type_datapoint(_Metric, histogram) ->
     [n];
-get_type_datapoint(duration) ->
+get_type_datapoint(_Metric, duration) ->
     [n];
-get_type_datapoint(gauge) ->
+get_type_datapoint(_Metric, gauge) ->
     [value];
-get_type_datapoint(function) ->
-    [value].
+get_type_datapoint(Metric, function) ->
+    exometer:info(Metric,datapoints).
 
 fetch_and_format_metrics(Entries) ->
     Metrics = fetch_metrics(Entries,[]),
@@ -216,10 +216,10 @@ format_label_metrics(Name, gauge, [{Label, [{value, Value}]} | Metrics], Acc) ->
         Name,format_labels(Label,[]),<<" ">>,ioize(Value),<<"\n">>
     ],
     format_label_metrics(Name, gauge, Metrics, [Payload|Acc]);
-format_label_metrics(Name, function, [{Label, [{value, Value}]} | Metrics], Acc) ->
-    Payload = [
-        Name,format_labels(Label,[]),<<" ">>,ioize(Value),<<"\n">>
-    ],
+format_label_metrics(Name, function, [{Label, [Values]} | Metrics], Acc) ->
+    Payload = [[
+        Name,format_labels(Label++[{type,ValueName}],[]),<<" ">>,ioize(Value),<<"\n">>
+    ] || {ValueName,Value} <- Values],
     format_label_metrics(Name, function, Metrics, [Payload|Acc]).
 
 format_duration_bukcets(_Name,_Label,[],Acc) ->
