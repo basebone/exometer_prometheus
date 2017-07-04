@@ -180,7 +180,7 @@ fetch_label_metrics(Type, [{Labels,Metric} | LabelEntries], Acc) ->
 
 format_metrics(Metrics) ->
     Formatted = format_metrics(Metrics, []),
-    iolist_to_binary(Formatted).
+    iolist_to_binary(lists:flatten(Formatted)).
 
 format_metrics([], Akk) ->
     Akk;
@@ -220,7 +220,7 @@ format_label_metrics(Name, function, [{Label, Values} | Metrics], Acc) ->
     Payload = [
         [Name,format_labels(Label++[{type,ValueName}],[]),<<" ">>,ioize(Value),<<"\n">>]
      || {ValueName,Value} <- Values],
-    format_label_metrics(Name, function, Metrics, [lists:flatten(Payload)|Acc]).
+    format_label_metrics(Name, function, Metrics, [Payload|Acc]).
 
 format_duration_bukcets(_Name,_Label,[],Acc) ->
     Acc;
