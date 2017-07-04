@@ -217,10 +217,10 @@ format_label_metrics(Name, gauge, [{Label, [{value, Value}]} | Metrics], Acc) ->
     ],
     format_label_metrics(Name, gauge, Metrics, [Payload|Acc]);
 format_label_metrics(Name, function, [{Label, Values} | Metrics], Acc) ->
-    Payload = [[
-        Name,format_labels(Label++[{type,ValueName}],[]),<<" ">>,ioize(Value),<<"\n">>
-    ] || {ValueName,Value} <- Values],
-    format_label_metrics(Name, function, Metrics, [Payload|Acc]).
+    Payload = [
+        [Name,format_labels(Label++[{type,ValueName}],[]),<<" ">>,ioize(Value),<<"\n">>]
+     || {ValueName,Value} <- Values],
+    format_label_metrics(Name, function, Metrics, [lists:flatten(Payload)|Acc]).
 
 format_duration_bukcets(_Name,_Label,[],Acc) ->
     Acc;
