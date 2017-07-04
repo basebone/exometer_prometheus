@@ -218,7 +218,7 @@ format_label_metrics(Name, gauge, [{Label, [{value, Value}]} | Metrics], Acc) ->
     format_label_metrics(Name, gauge, Metrics, [Payload|Acc]);
 format_label_metrics(Name, function, [{Label, Values} | Metrics], Acc) ->
     Payload = [
-        [Name,format_labels(Label++[{type,ValueName}],[]),<<" ">>,ioize(Value),<<"\n">>]
+        [Name,format_labels(Label++[{<<"type">>,ValueName}],[]),<<" ">>,ioize(Value),<<"\n">>]
      || {ValueName,Value} <- Values],
      io:format("Payload ~p~n",[Payload]),
     format_label_metrics(Name, function, Metrics, [Payload|Acc]).
