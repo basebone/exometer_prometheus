@@ -39,7 +39,7 @@ exometer_init(Opts) ->
         true -> exometer_prometheus_httpd:start(Opts);
         false -> ok
     end,
-    DynamicMap = lists:proplist(dynamic_map,Opts, []),
+    DynamicMap = proplists:get_value(dynamic_map,Opts, []),
     {ok, #state{dynamic_map= DynamicMap}}.
 
 exometer_subscribe(Metric, _DataPoints, _Interval, Opts, State = #state{entries=Entries}) ->
