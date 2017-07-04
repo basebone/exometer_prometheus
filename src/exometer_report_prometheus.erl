@@ -20,7 +20,7 @@
 ]).
 
 
--record(state, {entries = #{} :: list()}).
+-record(state, {entries = #{} :: list(),dynamic_map = []}).
 
 %% -------------------------------------------------------
 %% Public API
@@ -39,7 +39,8 @@ exometer_init(Opts) ->
         true -> exometer_prometheus_httpd:start(Opts);
         false -> ok
     end,
-    {ok, #state{}}.
+    DynamicMap = lists:proplists(dynamic_map,Opts, []),
+    {ok, #state{dynamic_map= DynamicMap}}.
 
 exometer_subscribe(Metric, _DataPoints, _Interval, Opts, State = #state{entries=Entries}) ->
 
@@ -72,25 +73,29 @@ exometer_call(_Req, _From, State) ->
     {ok, State}.
 
 exometer_newentry(Entry, State) -> 
-    case element(2,Entry) of
-        [riak,riak_core,vnodeq,_,_] = Metric ->
-            exometer_subscribe(Metric, [value], 0, [{help, <<"Vnode queue">>},{fieldmap,[ignore,name,name,vnode_type,partition]}],State);
-        [riak,riak_core,dropped_vnode_requests] = Metric ->
-            exometer_subscribe(Metric, [value], 0, [{help, <<"Dropped vnode requests">>},{fieldmap,[ignore,name,name]}],State);
-        [kraken,db_query] = Metric ->
-            exometer_subscribe(Metric, [n], 0, [{help, <<"DB Query durations">>},{fieldmap,[name,name]}],State);
-        [kraken,db_query_cache_hit] = Metric ->
-            exometer_subscribe(Metric, [value], 0, [{help, <<"DB query cache hits">>},{fieldmap,[name,name]}],State);
-        [kraken,db_query_cache_miss] = Metric ->
-            exometer_subscribe(Metric, [value], 0, [{help, <<"DB query cache misses">>},{fieldmap,[name,name]}],State);
-        [kraken,client,submit,_,_,_] = Metric ->
-            exometer_subscribe(Metric, [value], 0, [{help, <<"Client submit counter">>},{fieldmap,[name,name,name,clientid,serviceid,toc]}],State);
-        [kraken,gate,submit,_,_] = Metric ->
-            exometer_subscribe(Metric, [value], 0, [{help, <<"Gate submit counter">>},{fieldmap,[name,name,name,gateid,toc]}],State);
-        % [kraken,]
-        _ ->
-            {ok, State}
-    end.
+    % MatchList = [{[riak,riak_core,vnodeq,'_','_'],[ignore,name,name,vnode_type,partition],<<"HELP1">>},
+    %              {[riak,riak_core,dropped_vnode_requests],[ignore,name,name],<<"HELP2">>},
+    %              {[kraken,db_query],[name,name],<<"HELP3">>}],
+    % lists:foldl()
+    % X = raik,
+    % H = riak,
+    % Acc = [],
+    % lists:foldl(
+    % fun(X,[H|Acc]) -> 
+    %     if 
+    %         X == H -> Acc; 
+    %         H == '_' -> Acc; 
+    %         true -> no_match 
+    %     end 
+    % end;
+    % (X,no_match) -> 
+    %     no_match
+    % end
+    % ,[riak,riak_core,vnodeq,'_',1,'_'],Metrics).
+    Metric = element(2,Entry),
+    Type = element(3,Entry),
+    check_dynamic_match(Metric, State#state.dynamic_map, Type, State).
+
 exometer_report(_Metric, _DataPoint, _Extra, _Value, State) -> 
     io:format("REPORT --> ~p, ~p, ~p, ~p",[_Metric, _DataPoint, _Extra, _Value]),
     {ok, State}.
@@ -104,6 +109,37 @@ exometer_terminate(_Reason, _) -> ignore.
 %% -------------------------------------------------------
 %% internal
 %% -------------------------------------------------------
+check_dynamic_match(_Metric, [], _Type, State) ->
+    {ok,State};
+check_dynamic_match(Metric, [{Match, Fieldmap, Help} | Rest], Type, State) ->
+    case check_name_match(Metric,Match) of
+        ok ->
+            io:format("Subscribing to metric ~p",[Metric]),
+            exometer_subscribe(Metric, get_type_datapoint(Type), 0, [{help, Help},{fieldmap,Fieldmap}],State);
+        _ ->
+            check_dynamic_match(Metric, Rest, Type, State)
+    end.
+    
+
+check_name_match([Name | MetricRest], [Name | MatchRest]) ->
+    check_name_match(MetricRest, MatchRest);
+check_name_match([_Name | MetricRest], ['_' | MatchRest]) ->
+    check_name_match(MetricRest, MatchRest);
+check_name_match([], []) ->
+    ok;
+check_name_match(_, _) ->
+    not_ok.
+
+get_type_datapoint(counter) ->
+    [value];
+get_type_datapoint(histogram) ->
+    [n];
+get_type_datapoint(duration) ->
+    [n];
+get_type_datapoint(gauge) ->
+    [value];
+get_type_datapoint(function) ->
+    [value].
 
 fetch_and_format_metrics(Entries) ->
     Metrics = fetch_metrics(Entries,[]),
