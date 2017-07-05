@@ -43,7 +43,7 @@ exometer_init(Opts) ->
     {ok, #state{dynamic_map= DynamicMap}}.
 
 exometer_subscribe(Metric, _DataPoints, _Interval, Opts, State = #state{entries=Entries}) ->
-    io:format("exometer_subscribe(~p, ~p, ~p, ~p, state) -> ", [Metric, _DataPoints, _Interval, Opts]),
+    io:format("exometer_subscribe(~p, ~p, ~p, ~p, ~p) -> ~n", [Metric, _DataPoints, _Interval, Opts, State]),
     FieldMap = proplists:get_value(fieldmap, Opts, []),
     {Name, Labels} = make_metric_name(Metric, FieldMap),
     Type = exometer:info(Metric, type),
@@ -68,11 +68,14 @@ exometer_unsubscribe(Metric, _DataPoints, _Extra, State = #state{entries = Entri
     {ok, State#state{entries = proplists:delete(Metric, Entries)}}.
 
 exometer_call({request, fetch}, _From, State = #state{entries = Entries}) ->
+    io:format("CALL --> ~p, ~p, ~p~n",[{request, fetch}, _From, State]),
     {reply, fetch_and_format_metrics(maps:to_list(Entries)), State};
-exometer_call(_Req, _From, State) ->
+exometer_call(_Req, _From, State)  ->
+    io:format("CALL --> ~p, ~p, ~p~n",[_Req, _From, State]),
     {ok, State}.
 
 exometer_newentry(Entry, State) -> 
+    io:format("NEWENTRY --> ~p, ~p~n",[Entry, State]),
     % MatchList = [{[riak,riak_core,vnodeq,'_','_'],[ignore,name,name,vnode_type,partition],<<"HELP1">>},
     %              {[riak,riak_core,dropped_vnode_requests],[ignore,name,name],<<"HELP2">>},
     %              {[kraken,db_query],[name,name],<<"HELP3">>}],
@@ -97,7 +100,7 @@ exometer_newentry(Entry, State) ->
     check_dynamic_match(Metric, State#state.dynamic_map, Type, State).
 
 exometer_report(_Metric, _DataPoint, _Extra, _Value, State) -> 
-    io:format("REPORT --> ~p, ~p, ~p, ~p",[_Metric, _DataPoint, _Extra, _Value]),
+    io:format("REPORT --> ~p, ~p, ~p, ~p~n",[_Metric, _DataPoint, _Extra, _Value]),
     {ok, State}.
 exometer_cast(_Unknown, State) -> {ok, State}.
 
