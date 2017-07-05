@@ -35,7 +35,6 @@ fetch() ->
 %% -------------------------------------------------------
 
 exometer_init(Opts) ->
-    io:format("INIT --> ~p~n",[Opts]),
     case lists:member(enable_httpd, Opts) of
         true -> exometer_prometheus_httpd:start(Opts);
         false -> ok
@@ -43,13 +42,11 @@ exometer_init(Opts) ->
     DynamicMap = proplists:get_value(dynamic_map,Opts, []),
     SubscribeList = proplists:get_value(subscribe, Opts, []),
     lists:foreach(fun ({Metric, DataPoints, MetricOpts}) ->
-        io:format("SUBBING~n"),
         exometer_report:subscribe(?MODULE, Metric, DataPoints, infinity, MetricOpts)
     end, SubscribeList),
     {ok, #state{dynamic_map= DynamicMap}}.
 
 exometer_subscribe(Metric, _DataPoints, _Interval, Opts, State = #state{entries=Entries}) ->
-    io:format("exometer_subscribe(~p, ~p, ~p, ~p, ~p) -> ~n", [Metric, _DataPoints, _Interval, Opts, State]),
     FieldMap = proplists:get_value(fieldmap, Opts, []),
     {Name, Labels} = make_metric_name(Metric, FieldMap),
     Type = exometer:info(Metric, type),
