@@ -69,7 +69,7 @@ exometer_unsubscribe(Metric, _DataPoints, _Extra, State = #state{entries = Entri
     {ok, State#state{entries = proplists:delete(Metric, Entries)}}.
 
 exometer_call({request, fetch}, _From, State = #state{entries = Entries}) ->
-    io:format("CALL --> ~p, ~p, ~p~n",[{request, fetch}, _From, State]),
+    % io:format("CALL --> ~p, ~p, ~p~n",[{request, fetch}, _From, State]),
     {reply, fetch_and_format_metrics(maps:to_list(Entries)), State};
 exometer_call(_Req, _From, State)  ->
     io:format("CALL --> ~p, ~p, ~p~n",[_Req, _From, State]),
@@ -101,7 +101,7 @@ exometer_newentry(Entry, State) ->
     check_dynamic_match(Metric, State#state.dynamic_map, Type, State).
 
 exometer_report(_Metric, _DataPoint, _Extra, _Value, State) -> 
-    % io:format("REPORT --> ~p, ~p, ~p, ~p~n",[_Metric, _DataPoint, _Extra, _Value]),
+    io:format("REPORT --> ~p, ~p, ~p, ~p~n",[_Metric, _DataPoint, _Extra, _Value]),
     {ok, State}.
 exometer_cast(_Unknown, State) -> {ok, State}.
 
