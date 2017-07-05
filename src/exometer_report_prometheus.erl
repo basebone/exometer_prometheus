@@ -115,7 +115,8 @@ check_dynamic_match(Metric, [{Match, Fieldmap, Help} | Rest], Type, State) ->
     case check_name_match(Metric,Match) of
         ok ->
             io:format("Subscribing to metric ~p~n",[Metric]),
-            exometer_report:subscribe(?MODULE, Metric, get_type_datapoint(Metric, Type), 0, [{help, Help},{fieldmap,Fieldmap}],State);
+            exometer_report:subscribe(?MODULE, Metric, get_type_datapoint(Metric, Type), 0, [{help, Help},{fieldmap,Fieldmap}]);
+            % exometer_report:subscribe(exometer_report_prometheus)
         _ ->
             check_dynamic_match(Metric, Rest, Type, State)
     end.
