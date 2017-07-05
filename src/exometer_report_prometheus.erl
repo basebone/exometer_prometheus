@@ -101,7 +101,7 @@ exometer_newentry(Entry, State) ->
     check_dynamic_match(Metric, State#state.dynamic_map, Type, State).
 
 exometer_report(_Metric, _DataPoint, _Extra, _Value, State) -> 
-    io:format("REPORT --> ~p, ~p, ~p, ~p~n",[_Metric, _DataPoint, _Extra, _Value]),
+    % io:format("REPORT --> ~p, ~p, ~p, ~p~n",[_Metric, _DataPoint, _Extra, _Value]),
     {ok, State}.
 exometer_cast(_Unknown, State) -> {ok, State}.
 
