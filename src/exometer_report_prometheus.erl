@@ -43,7 +43,7 @@ exometer_init(Opts) ->
     {ok, #state{dynamic_map= DynamicMap}}.
 
 exometer_subscribe(Metric, _DataPoints, _Interval, Opts, State = #state{entries=Entries}) ->
-    io:format("exometer_subscribe(~p, ~p, ~p, ~p, ~p) -> ", [Metric, _DataPoints, _Interval, Opts, State]),
+    io:format("exometer_subscribe(~p, ~p, ~p, ~p, state) -> ", [Metric, _DataPoints, _Interval, Opts]),
     FieldMap = proplists:get_value(fieldmap, Opts, []),
     {Name, Labels} = make_metric_name(Metric, FieldMap),
     Type = exometer:info(Metric, type),
@@ -115,7 +115,7 @@ check_dynamic_match(Metric, [{Match, Fieldmap, Help} | Rest], Type, State) ->
     case check_name_match(Metric,Match) of
         ok ->
             io:format("Subscribing to metric ~p~n",[Metric]),
-            exometer_subscribe(Metric, get_type_datapoint(Metric, Type), 0, [{help, Help},{fieldmap,Fieldmap}],State);
+            exometer_report:subscribe(?MODULE, Metric, get_type_datapoint(Metric, Type), 0, [{help, Help},{fieldmap,Fieldmap}],State);
         _ ->
             check_dynamic_match(Metric, Rest, Type, State)
     end.
