@@ -35,6 +35,7 @@ fetch() ->
 %% -------------------------------------------------------
 
 exometer_init(Opts) ->
+    io:format("INIT --> ~p~n",[Opts]),
     case lists:member(enable_httpd, Opts) of
         true -> exometer_prometheus_httpd:start(Opts);
         false -> ok
@@ -75,7 +76,7 @@ exometer_call(_Req, _From, State)  ->
     {ok, State}.
 
 exometer_newentry(Entry, State) -> 
-    io:format("NEWENTRY --> ~p, ~p~n",[Entry, State]),
+    % io:format("NEWENTRY --> ~p, ~p~n",[Entry, State]),
     % MatchList = [{[riak,riak_core,vnodeq,'_','_'],[ignore,name,name,vnode_type,partition],<<"HELP1">>},
     %              {[riak,riak_core,dropped_vnode_requests],[ignore,name,name],<<"HELP2">>},
     %              {[kraken,db_query],[name,name],<<"HELP3">>}],
