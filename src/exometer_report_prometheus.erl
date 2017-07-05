@@ -41,8 +41,9 @@ exometer_init(Opts) ->
         false -> ok
     end,
     DynamicMap = proplists:get_value(dynamic_map,Opts, []),
-    SubscribeList = proplists:get_value(subscribe,Opts, []),
+    SubscribeList = proplists:get_value(subscribe, Opts, []),
     lists:foreach(fun ({Metric, DataPoints, MetricOpts}) ->
+        io:format("SUBBING~n"),
         exometer_report:subscribe(?MODULE, Metric, DataPoints, infinity, MetricOpts)
     end, SubscribeList),
     {ok, #state{dynamic_map= DynamicMap}}.
