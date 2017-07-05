@@ -43,8 +43,8 @@ exometer_init(Opts) ->
     {ok, #state{dynamic_map= DynamicMap}}.
 
 exometer_subscribe(Metric, _DataPoints, _Interval, Opts, State = #state{entries=Entries}) ->
-
-    FieldMap = proplists:get_value(fieldmap, Opts, node),
+    io:format("exometer_subscribe(~p, ~p, ~p, ~p, ~p) -> ", [Metric, _DataPoints, _Interval, Opts, State]),
+    FieldMap = proplists:get_value(fieldmap, Opts, []),
     {Name, Labels} = make_metric_name(Metric, FieldMap),
     Type = exometer:info(Metric, type),
     Help = proplists:get_value(help, Opts, <<"undefined">>),
