@@ -40,14 +40,11 @@ exometer_init(Opts) ->
         false -> ok
     end,
     DynamicMap = proplists:get_value(dynamic_map,Opts, []),
-    SubscribeList = proplists:get_value(subscribe, Opts, []),
-    lists:foreach(fun ({Metric, DataPoints, MetricOpts}) ->
-        exometer_report:subscribe(?MODULE, Metric, DataPoints, infinity, MetricOpts)
-    end, SubscribeList),
     {ok, #state{dynamic_map= DynamicMap}}.
 
 exometer_subscribe(Metric, _DataPoints, _Interval, Opts, State = #state{entries=Entries}) ->
-    FieldMap = proplists:get_value(fieldmap, Opts, []),
+
+    FieldMap = proplists:get_value(fieldmap, Opts, node),
     {Name, Labels} = make_metric_name(Metric, FieldMap),
     Type = exometer:info(Metric, type),
     Help = proplists:get_value(help, Opts, <<"undefined">>),
@@ -71,39 +68,16 @@ exometer_unsubscribe(Metric, _DataPoints, _Extra, State = #state{entries = Entri
     {ok, State#state{entries = proplists:delete(Metric, Entries)}}.
 
 exometer_call({request, fetch}, _From, State = #state{entries = Entries}) ->
-    % io:format("CALL --> ~p, ~p, ~p~n",[{request, fetch}, _From, State]),
     {reply, fetch_and_format_metrics(maps:to_list(Entries)), State};
-exometer_call(_Req, _From, State)  ->
-    io:format("CALL --> ~p, ~p, ~p~n",[_Req, _From, State]),
+exometer_call(_Req, _From, State) ->
     {ok, State}.
 
 exometer_newentry(Entry, State) -> 
-    % io:format("NEWENTRY --> ~p, ~p~n",[Entry, State]),
-    % MatchList = [{[riak,riak_core,vnodeq,'_','_'],[ignore,name,name,vnode_type,partition],<<"HELP1">>},
-    %              {[riak,riak_core,dropped_vnode_requests],[ignore,name,name],<<"HELP2">>},
-    %              {[kraken,db_query],[name,name],<<"HELP3">>}],
-    % lists:foldl()
-    % X = raik,
-    % H = riak,
-    % Acc = [],
-    % lists:foldl(
-    % fun(X,[H|Acc]) -> 
-    %     if 
-    %         X == H -> Acc; 
-    %         H == '_' -> Acc; 
-    %         true -> no_match 
-    %     end 
-    % end;
-    % (X,no_match) -> 
-    %     no_match
-    % end
-    % ,[riak,riak_core,vnodeq,'_',1,'_'],Metrics).
     Metric = element(2,Entry),
     Type = element(3,Entry),
     check_dynamic_match(Metric, State#state.dynamic_map, Type, State).
 
 exometer_report(_Metric, _DataPoint, _Extra, _Value, State) -> 
-    io:format("REPORT --> ~p, ~p, ~p, ~p~n",[_Metric, _DataPoint, _Extra, _Value]),
     {ok, State}.
 exometer_cast(_Unknown, State) -> {ok, State}.
 
@@ -121,8 +95,7 @@ check_dynamic_match(Metric, [{Match, Fieldmap, Help} | Rest], Type, State) ->
     case check_name_match(Metric,Match) of
         ok ->
             io:format("Subscribing to metric ~p~n",[Metric]),
-            exometer_report:subscribe(?MODULE, Metric, get_type_datapoint(Metric, Type), infinity, [{help, Help},{fieldmap,Fieldmap}]);
-            % exometer_report:subscribe(exometer_report_prometheus)
+            exometer_subscribe(Metric, get_type_datapoint(Metric, Type), 0, [{help, Help},{fieldmap,Fieldmap}],State);
         _ ->
             check_dynamic_match(Metric, Rest, Type, State)
     end.
