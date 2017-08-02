@@ -261,7 +261,7 @@ ioize_val(Number) when is_float(Number) ->
 ioize_val(Number) when is_integer(Number) ->
     integer_to_binary(Number).
 
-map_type(counter)       -> <<"counter">>;
+map_type(counter)       -> <<"gauge">>;
 map_type(function)       -> <<"counter">>;
 map_type(gauge)         -> <<"gauge">>;
 map_type(histogram)     -> <<"summary">>;
